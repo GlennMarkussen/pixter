@@ -4,7 +4,7 @@ import type { Player } from './types'
 
 const PLAYERS: Player[] = [
   { id: 1, name: 'Jonas the Red', color: '#d94a4a' },
-  { id: 2, name: 'Erna the Blue', color: '#4a72d9' }
+  { id: 2, name: 'Erna the Blue', color: '#4a72d9' },
 ]
 
 type RoundData = {
@@ -27,8 +27,14 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [gameOver, setGameOver] = useState<boolean>(false)
 
-  const describer = useMemo(() => PLAYERS.find(p => p.id === current.describerId)!, [current.describerId])
-  const guesser = useMemo(() => PLAYERS.find(p => p.id !== current.describerId)!, [current.describerId])
+  const describer = useMemo(
+    () => PLAYERS.find(p => p.id === current.describerId)!,
+    [current.describerId]
+  )
+  const guesser = useMemo(
+    () => PLAYERS.find(p => p.id !== current.describerId)!,
+    [current.describerId]
+  )
 
   const canEnd = (s: Record<number, number>) => s[1] <= -100 || s[2] <= -100
 
@@ -37,7 +43,7 @@ export default function App() {
     setLoading('Generating image...')
     try {
       const { imageUrl } = await api.generateImage(description)
-  setCurrent((c: RoundData) => ({ ...c, description, imageUrl }))
+      setCurrent((c: RoundData) => ({ ...c, description, imageUrl }))
     } catch (e: any) {
       setError(e.message || 'Failed to generate image')
     } finally {
@@ -67,7 +73,7 @@ export default function App() {
       })
       // continue same round up to 3 attempts
       setCurrent((c: RoundData) => {
-        const attemptsCount = (c.attempts?.length || 0)
+        const attemptsCount = c.attempts?.length || 0
         if (attemptsCount >= 3) {
           // after third wrong guess, flip turn and reset round (keep scores)
           return { describerId: guesser.id, description: '' }
@@ -105,9 +111,18 @@ export default function App() {
         <>
           <TurnBanner describer={describer.name} guesser={guesser.name} />
           {!current.imageUrl ? (
-            <DescribeForm onSubmit={handleDescribe} player={describer} busy={!!loading && loading.startsWith('Generating')} />
+            <DescribeForm
+              onSubmit={handleDescribe}
+              player={describer}
+              busy={!!loading && loading.startsWith('Generating')}
+            />
           ) : (
-            <GuessForm onSubmit={handleGuess} player={guesser} imageUrl={current.imageUrl} attempts={current.attempts || []} />
+            <GuessForm
+              onSubmit={handleGuess}
+              player={guesser}
+              imageUrl={current.imageUrl}
+              attempts={current.attempts || []}
+            />
           )}
 
           {/* Rationale intentionally hidden to avoid spoilers */}
@@ -118,10 +133,13 @@ export default function App() {
       {error && <div className="error">{error}</div>}
 
       <footer>
-        <small>Backend health: <HealthBadge /></small>
+        <small>
+          Backend health: <HealthBadge />
+        </small>
       </footer>
     </div>
-  )}
+  )
+}
 
 function Scoreboard({ scores }: { scores: Record<number, number> }) {
   return (
@@ -132,16 +150,18 @@ function Scoreboard({ scores }: { scores: Record<number, number> }) {
   )
 }
 
-function Score({ name, color, value }: { name: string, color: string, value: number }) {
+function Score({ name, color, value }: { name: string; color: string; value: number }) {
   return (
     <div className="score" style={{ borderColor: color }}>
-      <div className="name" style={{ color }}>{name}</div>
+      <div className="name" style={{ color }}>
+        {name}
+      </div>
       <div className="value">{value}</div>
     </div>
   )
 }
 
-function TurnBanner({ describer, guesser }: { describer: string, guesser: string }) {
+function TurnBanner({ describer, guesser }: { describer: string; guesser: string }) {
   return (
     <div className="turn">
       <strong>{describer}</strong> describes. <strong>{guesser}</strong> guesses.
@@ -149,31 +169,63 @@ function TurnBanner({ describer, guesser }: { describer: string, guesser: string
   )
 }
 
-function DescribeForm({ onSubmit, player, busy }: { onSubmit: (d: string) => void, player: Player, busy?: boolean }) {
+function DescribeForm({
+  onSubmit,
+  player,
+  busy,
+}: {
+  onSubmit: (d: string) => void
+  player: Player
+  busy?: boolean
+}) {
   const [text, setText] = useState('')
   return (
     <div className="card">
       <h3 style={{ color: player.color }}>{player.name}, describe the scene</h3>
-      <textarea value={text} onChange={e => setText(e.target.value)} rows={5} placeholder="Describe a scene..." />
+      <textarea
+        value={text}
+        onChange={e => setText(e.target.value)}
+        rows={5}
+        placeholder="Describe a scene..."
+      />
       {busy ? (
         <span className="subtitle">Generating image…</span>
       ) : (
-        <button disabled={!text.trim()} onClick={() => onSubmit(text.trim())}>Generate Image</button>
+        <button disabled={!text.trim()} onClick={() => onSubmit(text.trim())}>
+          Generate Image
+        </button>
       )}
     </div>
   )
 }
 
-function GuessForm({ onSubmit, player, imageUrl, attempts }: { onSubmit: (g: string) => void, player: Player, imageUrl: string, attempts: Array<{ guess: string; correct: boolean; rationale?: string; closeness?: number }> }) {
+function GuessForm({
+  onSubmit,
+  player,
+  imageUrl,
+  attempts,
+}: {
+  onSubmit: (g: string) => void
+  player: Player
+  imageUrl: string
+  attempts: Array<{ guess: string; correct: boolean; rationale?: string; closeness?: number }>
+}) {
   const [guess, setGuess] = useState('')
   return (
     <div className="card">
       <h3 style={{ color: player.color }}>{player.name}, describe what you see</h3>
       <img className="preview" src={imageUrl} alt="generated" />
-      <textarea value={guess} onChange={e => setGuess(e.target.value)} rows={4} placeholder="Your description..." />
+      <textarea
+        value={guess}
+        onChange={e => setGuess(e.target.value)}
+        rows={4}
+        placeholder="Your description..."
+      />
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button disabled={!guess.trim()} onClick={() => onSubmit(guess.trim())}>Submit Guess</button>
-        <span className="subtitle">Attempt {Math.min( (attempts?.length || 0) + 1, 3)} of 3</span>
+        <button disabled={!guess.trim()} onClick={() => onSubmit(guess.trim())}>
+          Submit Guess
+        </button>
+        <span className="subtitle">Attempt {Math.min((attempts?.length || 0) + 1, 3)} of 3</span>
       </div>
       {attempts?.length ? (
         <div style={{ marginTop: 10 }}>
@@ -183,7 +235,9 @@ function GuessForm({ onSubmit, player, imageUrl, attempts }: { onSubmit: (g: str
               <li key={idx}>
                 <span>{a.guess}</span>
                 {typeof a.closeness === 'number' && (
-                  <span style={{ marginLeft: 8, color: '#93c5fd' }}>closeness: {(a.closeness * 100).toFixed(0)}%</span>
+                  <span style={{ marginLeft: 8, color: '#93c5fd' }}>
+                    closeness: {(a.closeness * 100).toFixed(0)}%
+                  </span>
                 )}
               </li>
             ))}
@@ -194,10 +248,20 @@ function GuessForm({ onSubmit, player, imageUrl, attempts }: { onSubmit: (g: str
   )
 }
 
-function GameOver({ scores, current, onReset }: { scores: Record<number, number>, current: any, onReset: () => void }) {
+function GameOver({
+  scores,
+  current,
+  onReset,
+}: {
+  scores: Record<number, number>
+  current: any
+  onReset: () => void
+}) {
   const winner = current.correct
     ? 'Guesser won by correctly describing the image!'
-    : (scores[1] <= -100 || scores[2] <= -100) ? 'Game ended due to penalties.' : 'Game over.'
+    : scores[1] <= -100 || scores[2] <= -100
+      ? 'Game ended due to penalties.'
+      : 'Game over.'
   return (
     <div className="card">
       <h2>Game Over</h2>
@@ -213,13 +277,23 @@ function HealthBadge() {
   const [mock, setMock] = useState2<boolean>(false)
   useEffect(() => {
     let mounted = true
-    api.health().then(j => {
-      if (!mounted) return
-      setStatus(j.ok ? 'ok' : 'down')
-      setMock(!!j.data?.mock)
-    }).catch(() => mounted && setStatus('down'))
-    return () => { mounted = false }
+    api
+      .health()
+      .then(j => {
+        if (!mounted) return
+        setStatus(j.ok ? 'ok' : 'down')
+        setMock(!!j.data?.mock)
+      })
+      .catch(() => mounted && setStatus('down'))
+    return () => {
+      mounted = false
+    }
   }, [])
   if (status === 'loading') return <span className="badge">checking...</span>
-  return <span className={`badge ${status}`}>{status}{mock ? ' (mock)' : ''}</span>
+  return (
+    <span className={`badge ${status}`}>
+      {status}
+      {mock ? ' (mock)' : ''}
+    </span>
+  )
 }

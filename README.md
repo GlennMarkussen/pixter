@@ -30,11 +30,13 @@ npm run api
 ```
 
 ## Notes
+
 - Players: Jonas the Red and Erna the Blue; starting player is random each game.
 - Penalty: -10 per wrong guess; game ends at -100 or when the guess is correct.
 - Safe by default: API falls back to mock if no key present.
 
 ## Scripts
+
 - dev: run Vite and API together with a proxy from /api to 3001
 - frontend: run only Vite dev server
 - api: run only the API server
@@ -42,4 +44,5 @@ npm run api
 - preview: preview built frontend
 
 ## License
+
 MIT

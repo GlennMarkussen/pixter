@@ -1,16 +1,16 @@
 export type Player = {
-  id: number;
-  name: string;
-  color: string;
-};
+  id: number
+  name: string
+  color: string
+}
 
 export type GenerateImageResponse = {
-  imageUrl: string;
-  model: string;
-};
+  imageUrl: string
+  model: string
+}
 
 export type JudgeResponse = {
-  correct: boolean;
-  rationale: string;
-  closeness?: number; // 0..1 similarity heuristic
-};
+  correct: boolean
+  rationale: string
+  closeness?: number // 0..1 similarity heuristic
+}
