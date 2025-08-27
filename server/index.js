@@ -104,7 +104,7 @@ app.post('/api/generate-image', async (req, res) => {
 app.post('/api/judge', async (req, res) => {
   const { originalDescription, guess } = req.body || {}
   if (!originalDescription || !guess) return err(res, 'Missing fields', 400)
-  // Helper to compute a simple similarity (Jaccard index over words)
+  // Helper to compute similarity (Dice coefficient over words, more generous than Jaccard)
   function computeCloseness(aText, bText) {
     const a = new Set(
       String(aText)
@@ -120,8 +120,9 @@ app.post('/api/judge', async (req, res) => {
     )
     let inter = 0
     for (const w of b) if (a.has(w)) inter++
-    const union = new Set([...a, ...b]).size || 1
-    return { closeness: inter / union, overlap: inter }
+    const sizeSum = (a.size + b.size) || 1
+    const dice = (2 * inter) / sizeSum
+    return { closeness: dice, overlap: inter }
   }
   try {
     if (MOCK || !OpenAI) {
@@ -133,7 +134,7 @@ app.post('/api/judge', async (req, res) => {
     }
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
     const sys =
-      'You are a strict judge for a guessing game. Given the original prompt that generated an image and a player guess describing that image, reply with a JSON object {"correct": boolean, "rationale": string}. The guess must capture the main subject and key attributes to be correct.'
+      'You are a strict judge for a guessing game. Given the original prompt that generated an image and a player guess describing that image, reply with ONLY a JSON object of the shape {"correct": boolean, "closeness": number, "rationale": string}.\n- "correct": whether the guess captures the main subject and key attributes.\n- "closeness": a similarity score between 0 and 1 indicating how close the guess is (0=totally off, 1=nearly identical).'
     const user = `Original: ${originalDescription}\nGuess: ${guess}\nReturn only JSON.`
     const chat = await client.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -150,7 +151,14 @@ app.post('/api/judge', async (req, res) => {
     } catch {}
     const correct = !!parsed.correct
     const rationale = parsed.rationale || 'model'
-    const { closeness, overlap } = computeCloseness(originalDescription, guess)
+    // Prefer model-provided closeness when available; clamp to [0,1]
+    let modelClose = Number(parsed.closeness)
+    if (!Number.isFinite(modelClose)) modelClose = NaN
+    if (Number.isFinite(modelClose)) {
+      modelClose = Math.max(0, Math.min(1, modelClose))
+    }
+    const { closeness: heuristicClose } = computeCloseness(originalDescription, guess)
+    const closeness = Number.isFinite(modelClose) ? modelClose : heuristicClose
     return ok(res, { correct, rationale, closeness })
   } catch (e) {
     console.error('[judge] OpenAI error:', e?.status || '', e?.response?.data || e?.message || e)
