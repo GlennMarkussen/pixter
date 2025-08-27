@@ -110,9 +110,7 @@ export default function App() {
             <GuessForm onSubmit={handleGuess} player={guesser} imageUrl={current.imageUrl} attempts={current.attempts || []} />
           )}
 
-          {current.rationale && (
-            <div className="rationale">Judge: {current.rationale}</div>
-          )}
+          {/* Rationale intentionally hidden to avoid spoilers */}
         </>
       )}
 
@@ -182,9 +180,6 @@ function GuessForm({ onSubmit, player, imageUrl, attempts }: { onSubmit: (g: str
                 <span>{a.guess}</span>
                 {typeof a.closeness === 'number' && (
                   <span style={{ marginLeft: 8, color: '#93c5fd' }}>closeness: {(a.closeness * 100).toFixed(0)}%</span>
-                )}
-                {a.rationale && (
-                  <span style={{ marginLeft: 8, color: '#9ca3af' }}>({a.rationale})</span>
                 )}
               </li>
             ))}
