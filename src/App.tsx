@@ -105,7 +105,7 @@ export default function App() {
         <>
           <TurnBanner describer={describer.name} guesser={guesser.name} />
           {!current.imageUrl ? (
-            <DescribeForm onSubmit={handleDescribe} player={describer} />
+            <DescribeForm onSubmit={handleDescribe} player={describer} busy={!!loading && loading.startsWith('Generating')} />
           ) : (
             <GuessForm onSubmit={handleGuess} player={guesser} imageUrl={current.imageUrl} attempts={current.attempts || []} />
           )}
@@ -149,13 +149,17 @@ function TurnBanner({ describer, guesser }: { describer: string, guesser: string
   )
 }
 
-function DescribeForm({ onSubmit, player }: { onSubmit: (d: string) => void, player: Player }) {
+function DescribeForm({ onSubmit, player, busy }: { onSubmit: (d: string) => void, player: Player, busy?: boolean }) {
   const [text, setText] = useState('')
   return (
     <div className="card">
       <h3 style={{ color: player.color }}>{player.name}, describe the scene</h3>
       <textarea value={text} onChange={e => setText(e.target.value)} rows={5} placeholder="Describe a scene..." />
-      <button disabled={!text.trim()} onClick={() => onSubmit(text.trim())}>Generate Image</button>
+      {busy ? (
+        <span className="subtitle">Generating image…</span>
+      ) : (
+        <button disabled={!text.trim()} onClick={() => onSubmit(text.trim())}>Generate Image</button>
+      )}
     </div>
   )
 }
