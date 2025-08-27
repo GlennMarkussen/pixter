@@ -130,3 +130,67 @@ button:disabled {
   background: #7f1d1d;
   color: #fecaca;
 }
+
+/* Settings bar */
+.settings {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid #1f2937;
+  background: #0b1220aa;
+  border-radius: 999px;
+  margin: 8px 0 12px;
+}
+.settings__label {
+  color: var(--muted);
+  font-size: 14px;
+}
+.settings__input {
+  width: 70px;
+  background: #0b1220;
+  color: var(--text);
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+.settings__input:disabled {
+  opacity: 0.6;
+}
+.settings__hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Start screen */
+.start {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 18px;
+}
+.start__hero {
+  font-size: 22px;
+  font-weight: 900;
+  background: linear-gradient(90deg, #22d3ee, #a78bfa, #f472b6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.start__tagline {
+  color: #cbd5e1;
+}
+.start__panel {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid #1f2937;
+  background: #0b1220aa;
+  border-radius: 999px;
+}
+.start__input {
+  width: 90px;
+}

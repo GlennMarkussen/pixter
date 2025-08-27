@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from './api'
 import type { Player } from './types'
 
@@ -39,6 +39,7 @@ export default function App() {
     const start = Math.random() < 0.5 ? 1 : 2
     return { describerId: start, description: '' }
   })
+  const [started, setStarted] = useState<boolean>(false)
   const [loading, setLoading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [gameOver, setGameOver] = useState<boolean>(false)
@@ -46,8 +47,11 @@ export default function App() {
   const [roundReason, setRoundReason] = useState<'max_attempts' | 'give_up' | null>(null)
   const [roundPoints, setRoundPoints] = useState<Record<number, number> | null>(null)
 
-  // Traditional scoring: only guesser scores. +1 per correct guess. First to TARGET wins.
-  const TARGET_SCORE = 10
+  // Traditional scoring: only guesser scores. +1 per correct guess. First to targetScore wins.
+  const [targetScore, setTargetScore] = useState<number>(() => {
+    const v = Number(localStorage.getItem('pixter.targetScore'))
+    return Number.isFinite(v) && v >= 1 ? v : 10
+  })
   const POINTS_PER_CORRECT = 1
 
   const describer = useMemo(
@@ -59,7 +63,19 @@ export default function App() {
     [current.describerId]
   )
 
-  const canWin = (s: Record<number, number>) => s[1] >= TARGET_SCORE || s[2] >= TARGET_SCORE
+  const canWin = (s: Record<number, number>) => s[1] >= targetScore || s[2] >= targetScore
+
+  // Persist targetScore and evaluate win condition when it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('pixter.targetScore', String(targetScore))
+    } catch {}
+    if (!gameOver) {
+      if (scores[1] >= targetScore || scores[2] >= targetScore) {
+        setGameOver(true)
+      }
+    }
+  }, [targetScore, gameOver, scores])
 
   async function handleDescribe(description: string) {
   if (loading) return
@@ -146,12 +162,25 @@ export default function App() {
   setRoundPoints(null)
   }
 
+  function startGame() {
+    setScores({ 1: 0, 2: 0 })
+    const start = Math.random() < 0.5 ? 1 : 2
+    setCurrent({ describerId: start, description: '' })
+    setRoundOver(false)
+    setRoundReason(null)
+    setRoundPoints(null)
+    setGameOver(false)
+    setError(null)
+    setStarted(true)
+  }
+
   function resetGame() {
     setScores({ 1: 0, 2: 0 })
     const start = Math.random() < 0.5 ? 1 : 2
     setCurrent({ describerId: start, description: '' })
     setGameOver(false)
     setError(null)
+    setStarted(false)
   }
 
   return (
@@ -161,12 +190,17 @@ export default function App() {
         <span className="subtitle">A two-player picture guessing game</span>
       </header>
 
-      <Scoreboard scores={scores} />
-
-      {gameOver ? (
+      {!started ? (
+        <StartScreen
+          targetScore={targetScore}
+          setTargetScore={setTargetScore}
+          onStart={startGame}
+        />
+      ) : gameOver ? (
         <GameOver scores={scores} current={current} onReset={resetGame} />
       ) : (
         <>
+          <Scoreboard scores={scores} />
           <TurnBanner describer={describer.name} guesser={guesser.name} />
           {!current.imageUrl ? (
             <DescribeForm
@@ -365,7 +399,7 @@ function GameOver({
   )
 }
 
-import { useEffect, useState as useState2 } from 'react'
+import { useState as useState2 } from 'react'
 function HealthBadge() {
   const [status, setStatus] = useState2<'ok' | 'down' | 'loading'>('loading')
   const [mock, setMock] = useState2<boolean>(false)
@@ -421,6 +455,37 @@ function RoundSummary({
       </p>
       {pointsLabel ? <p className="subtitle">{pointsLabel}</p> : null}
       <button onClick={onNextRound}>Next round</button>
+    </div>
+  )
+}
+
+function StartScreen({
+  targetScore,
+  setTargetScore,
+  onStart,
+}: {
+  targetScore: number
+  setTargetScore: (n: number) => void
+  onStart: () => void
+}) {
+  const clamped = (v: number) => Math.max(1, Math.min(100, Math.floor(v || 0)))
+  return (
+    <div className="start">
+      <div className="start__hero">🌟 The MOST EPIC, MIND-BLOWING, JAW-DROPPING GUESSING GAME EVER™ 🌟</div>
+      <div className="start__tagline">Summon fantastical images. Outsmart your rival. Claim eternal glory.</div>
+      <div className="start__panel">
+        <label className="settings__label" htmlFor="targetScore">Target score</label>
+        <input
+          id="targetScore"
+          className="settings__input start__input"
+          type="number"
+          min={1}
+          max={100}
+          value={targetScore}
+          onChange={e => setTargetScore(clamped(Number(e.target.value)))}
+        />
+        <button onClick={onStart}>Start Game</button>
+      </div>
     </div>
   )
 }
