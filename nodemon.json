@@ -3,6 +3,7 @@
   "ext": "js,json",
   "ignore": ["**/*.test.js"],
   "env": {
-    "NODE_ENV": "development"
+    "NODE_ENV": "development",
+    "OPENAI_IMAGE_MODEL": "dall-e-3"
   }
 }
