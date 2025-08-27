@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently -k -n FRONTEND,API -c blue,magenta \"vite\" \"node server/index.js\"",
+  "dev": "concurrently -k -n FRONTEND,API -c blue,magenta \"vite\" \"node server/start.js\"",
     "frontend": "vite",
-    "api": "node server/index.js",
+  "api": "node server/start.js",
     "build": "vite build",
     "preview": "vite preview"
   },
