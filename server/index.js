@@ -14,11 +14,20 @@ const MOCK = process.env.MOCK_OPENAI === '1' || !process.env.OPENAI_API_KEY;
 let OpenAI;
 if (!MOCK) {
   try {
-    OpenAI = require('openai');
+    // ESM default export interop: handle require('openai') in CJS
+    const mod = require('openai');
+    OpenAI = mod?.OpenAI || mod?.default || mod;
   } catch (e) {
-    console.warn('OpenAI SDK not available, falling back to mock.');
+    console.warn('OpenAI SDK not available, falling back to mock.', e?.message || e);
   }
 }
+
+// Preferred image models in order; allow override via env
+const IMAGE_MODELS = Array.from(new Set([
+  process.env.OPENAI_IMAGE_MODEL,
+  'gpt-image-1',
+  'dall-e-3'
+].filter(Boolean)));
 
 // Helpers
 function ok(res, data) {
@@ -42,29 +51,43 @@ app.post('/api/generate-image', async (req, res) => {
     }
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     // Use images generation API (model name subject to change)
-  let resp;
-    try {
-      resp = await client.images.generate({
-        model: 'gpt-image-1',
-        prompt: description,
-    size: '1024x1024',
-    response_format: 'b64_json'
-      });
-    } catch (e) {
-      // Fallback to auto if size not accepted
-      resp = await client.images.generate({
-        model: 'gpt-image-1',
-        prompt: description,
-    size: 'auto',
-    response_format: 'b64_json'
-      });
+    let lastErr;
+    for (const model of IMAGE_MODELS) {
+      try {
+        let resp;
+        try {
+          resp = await client.images.generate({
+            model,
+            prompt: description,
+            size: '1024x1024',
+          });
+        } catch (e) {
+          // Fallback to auto if size not accepted
+          resp = await client.images.generate({
+            model,
+            prompt: description,
+            size: 'auto',
+          });
+        }
+        const d0 = resp?.data?.[0] || {};
+        const b64 = d0.b64_json;
+        const url = d0.url;
+        if (!b64 && !url) {
+          lastErr = new Error('No image content from model');
+          continue;
+        }
+        const imageUrl = b64 ? `data:image/png;base64,${b64}` : url;
+        return ok(res, { imageUrl, model });
+      } catch (e) {
+        lastErr = e;
+        console.warn(`[generate-image] model ${model} failed:`, e?.status || '', e?.response?.data || e?.message || e);
+        // Try next model
+      }
     }
-  const b64 = resp.data?.[0]?.b64_json;
-  if (!b64) return err(res, 'No image content from model');
-  const imageUrl = `data:image/png;base64,${b64}`;
-  return ok(res, { imageUrl, model: 'gpt-image-1' });
+    // If loop completes without returning
+    throw lastErr || new Error('All image models failed');
   } catch (e) {
-    console.error(e);
+    console.error('[generate-image] OpenAI error:', e?.status || '', e?.response?.data || e?.message || e);
     // Fallback to placeholder when OpenAI fails (e.g., billing limit)
     const url = `https://dummyimage.com/1024x1024/233143/ffffff.png&text=${encodeURIComponent('mock: ' + description.slice(0, 40))}`;
     return ok(res, { imageUrl: url, model: 'mock-fallback' });
@@ -103,8 +126,14 @@ app.post('/api/judge', async (req, res) => {
     const rationale = parsed.rationale || 'model';
     return ok(res, { correct, rationale });
   } catch (e) {
-    console.error(e);
-    return err(res, 'Judge failed');
+  console.error('[judge] OpenAI error:', e?.status || '', e?.response?.data || e?.message || e);
+  // Heuristic fallback instead of hard error
+  const a = new Set(String(originalDescription).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+  const b = new Set(String(guess).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+  let overlap = 0;
+  for (const w of b) if (a.has(w)) overlap++;
+  const correct = overlap >= 3 || guess.trim().toLowerCase() === originalDescription.trim().toLowerCase();
+  return ok(res, { correct, rationale: `fallback_overlap_words=${overlap}` });
   }
 });
 
