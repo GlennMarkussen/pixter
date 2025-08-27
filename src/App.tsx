@@ -2,6 +2,10 @@ import { useMemo, useState } from 'react'
 import { api } from './api'
 import type { Player } from './types'
 
+function normalizeText(s: string) {
+  return s.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
 const PLAYERS: Player[] = [
   { id: 1, name: 'Jonas the Red', color: '#d94a4a' },
   { id: 2, name: 'Erna the Blue', color: '#4a72d9' },
@@ -55,6 +59,11 @@ export default function App() {
   async function handleGuess(guess: string) {
     if (!current.imageUrl) return
   if (loading) return
+    // Avoid duplicate guess (same as last attempt in this round)
+    const lastGuess = current.attempts?.[current.attempts.length - 1]?.guess
+    if (lastGuess && normalizeText(lastGuess) === normalizeText(guess)) {
+      return // silently ignore duplicate
+    }
     setError(null)
     setLoading('Judging guess...')
     try {
@@ -150,7 +159,9 @@ export default function App() {
         </>
       )}
 
-      {loading && <div className="loading">{loading}</div>}
+      {loading && !loading.startsWith('Generating') && (
+        <div className="loading">{loading}</div>
+      )}
       {error && <div className="error">{error}</div>}
 
       <footer>
@@ -236,6 +247,9 @@ function GuessForm({
   onGiveUp?: () => void
 }) {
   const [guess, setGuess] = useState('')
+  const last = attempts?.[attempts.length - 1]?.guess
+  const isDuplicate = last && normalizeText(last) === normalizeText(guess)
+  const canSubmit = !busy && !!guess.trim() && !isDuplicate
   return (
     <div className="card">
       <h3 style={{ color: player.color }}>{player.name}, describe what you see</h3>
@@ -248,7 +262,7 @@ function GuessForm({
         disabled={!!busy}
       />
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button disabled={!!busy || !guess.trim()} onClick={() => onSubmit(guess.trim())}>
+        <button disabled={!canSubmit} onClick={() => onSubmit(guess.trim())}>
           Submit Guess
         </button>
         {onGiveUp && (
@@ -258,13 +272,20 @@ function GuessForm({
         )}
         <span className="subtitle">
           Attempt {Math.min((attempts?.length || 0) + 1, 3)} of 3{busy ? ' • Judging…' : ''}
+          {isDuplicate ? ' • same as previous' : ''}
         </span>
       </div>
       {attempts?.length ? (
         <div style={{ marginTop: 10 }}>
           <div className="subtitle">Previous attempts</div>
           <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-            {attempts.map((a, idx) => (
+            {attempts
+              .filter((a, idx, arr) => {
+                // show each unique guess once (normalized)
+                const n = normalizeText(a.guess)
+                return arr.findIndex(x => normalizeText(x.guess) === n) === idx
+              })
+              .map((a, idx) => (
               <li key={idx}>
                 <span>{a.guess}</span>
                 {typeof a.closeness === 'number' && (
