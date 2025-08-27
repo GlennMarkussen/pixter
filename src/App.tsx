@@ -6,16 +6,20 @@ function normalizeText(s: string) {
   return s.trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
-function formatRoundPoints(rp: Record<number, number> | null) {
+function formatRoundPoints(
+  rp: Record<number, number> | null,
+  name1: string,
+  name2: string
+) {
   if (!rp) return ''
   const p1 = rp[1] ?? 0
   const p2 = rp[2] ?? 0
   const s = (v: number) => (v >= 0 ? `+${v}` : `${v}`)
   // Only guesser scores; show whoever got points.
-  if (p1 !== 0 && p2 === 0) return `This round: Jonas the Red ${s(p1)}`
-  if (p2 !== 0 && p1 === 0) return `This round: Erna the Blue ${s(p2)}`
+  if (p1 !== 0 && p2 === 0) return `This round: ${name1} ${s(p1)}`
+  if (p2 !== 0 && p1 === 0) return `This round: ${name2} ${s(p2)}`
   if (p1 === 0 && p2 === 0) return 'This round: no points'
-  return `This round: Jonas the Red ${s(p1)}, Erna the Blue ${s(p2)}`
+  return `This round: ${name1} ${s(p1)}, ${name2} ${s(p2)}`
 }
 
 const PLAYERS: Player[] = [
@@ -34,6 +38,7 @@ type RoundData = {
 }
 
 export default function App() {
+  const [players, setPlayers] = useState<Player[]>(PLAYERS)
   const [scores, setScores] = useState<Record<number, number>>({ 1: 0, 2: 0 })
   const [current, setCurrent] = useState<RoundData>(() => {
     const start = Math.random() < 0.5 ? 1 : 2
@@ -52,15 +57,17 @@ export default function App() {
     const v = Number(localStorage.getItem('pixter.targetScore'))
     return Number.isFinite(v) && v >= 1 ? v : 10
   })
+  const [name1, setName1] = useState<string>(() => localStorage.getItem('pixter.name1') || PLAYERS[0].name)
+  const [name2, setName2] = useState<string>(() => localStorage.getItem('pixter.name2') || PLAYERS[1].name)
   const POINTS_PER_CORRECT = 1
 
   const describer = useMemo(
-    () => PLAYERS.find(p => p.id === current.describerId)!,
-    [current.describerId]
+    () => players.find(p => p.id === current.describerId)!,
+    [current.describerId, players]
   )
   const guesser = useMemo(
-    () => PLAYERS.find(p => p.id !== current.describerId)!,
-    [current.describerId]
+    () => players.find(p => p.id !== current.describerId)!,
+    [current.describerId, players]
   )
 
   const canWin = (s: Record<number, number>) => s[1] >= targetScore || s[2] >= targetScore
@@ -163,6 +170,15 @@ export default function App() {
   }
 
   function startGame() {
+    // Persist names and set players
+    try {
+      localStorage.setItem('pixter.name1', name1)
+      localStorage.setItem('pixter.name2', name2)
+    } catch {}
+    setPlayers([
+      { id: 1, name: name1.trim() || PLAYERS[0].name, color: PLAYERS[0].color },
+      { id: 2, name: name2.trim() || PLAYERS[1].name, color: PLAYERS[1].color },
+    ])
     setScores({ 1: 0, 2: 0 })
     const start = Math.random() < 0.5 ? 1 : 2
     setCurrent({ describerId: start, description: '' })
@@ -195,12 +211,16 @@ export default function App() {
           targetScore={targetScore}
           setTargetScore={setTargetScore}
           onStart={startGame}
+          name1={name1}
+          name2={name2}
+          setName1={setName1}
+          setName2={setName2}
         />
       ) : gameOver ? (
-        <GameOver scores={scores} current={current} onReset={resetGame} />
+        <GameOver scores={scores} players={players} onReset={resetGame} />
       ) : (
         <>
-          <Scoreboard scores={scores} />
+          <Scoreboard scores={scores} players={players} />
           <TurnBanner describer={describer.name} guesser={guesser.name} />
           {!current.imageUrl ? (
             <DescribeForm
@@ -213,7 +233,11 @@ export default function App() {
               correctAnswer={current.description}
               imageUrl={current.imageUrl}
               reason={roundReason || 'max_attempts'}
-              pointsLabel={formatRoundPoints(roundPoints)}
+              pointsLabel={formatRoundPoints(
+                roundPoints,
+                players.find(p => p.id === 1)?.name || 'Player 1',
+                players.find(p => p.id === 2)?.name || 'Player 2'
+              )}
               onNextRound={nextRound}
             />
           ) : (
@@ -245,11 +269,13 @@ export default function App() {
   )
 }
 
-function Scoreboard({ scores }: { scores: Record<number, number> }) {
+function Scoreboard({ scores, players }: { scores: Record<number, number>; players: Player[] }) {
+  const p1 = players.find(p => p.id === 1)!
+  const p2 = players.find(p => p.id === 2)!
   return (
     <div className="scoreboard">
-      <Score name="Jonas the Red" color="#d94a4a" value={scores[1]} />
-      <Score name="Erna the Blue" color="#4a72d9" value={scores[2]} />
+      <Score name={p1.name} color={p1.color} value={scores[1]} />
+      <Score name={p2.name} color={p2.color} value={scores[2]} />
     </div>
   )
 }
@@ -376,16 +402,17 @@ function GuessForm({
 
 function GameOver({
   scores,
-  current,
+  players,
   onReset,
 }: {
   scores: Record<number, number>
-  current: any
+  players: Player[]
   onReset: () => void
 }) {
   // Determine winner as higher score (positive target-based)
-  const winnerName = scores[1] >= scores[2] ? 'Jonas the Red' : 'Erna the Blue'
-  const winnerScore = Math.max(scores[1], scores[2])
+  const p1 = players.find(p => p.id === 1)!
+  const p2 = players.find(p => p.id === 2)!
+  const winnerName = scores[1] >= scores[2] ? p1.name : p2.name
   return (
     <div className="card" style={{ textAlign: 'center', padding: 32 }}>
       <div style={{ fontSize: 64, lineHeight: 1, marginBottom: 12 }}>🏆</div>
@@ -463,10 +490,18 @@ function StartScreen({
   targetScore,
   setTargetScore,
   onStart,
+  name1,
+  name2,
+  setName1,
+  setName2,
 }: {
   targetScore: number
   setTargetScore: (n: number) => void
   onStart: () => void
+  name1: string
+  name2: string
+  setName1: (s: string) => void
+  setName2: (s: string) => void
 }) {
   const clamped = (v: number) => Math.max(1, Math.min(100, Math.floor(v || 0)))
   return (
@@ -474,6 +509,24 @@ function StartScreen({
       <div className="start__hero">🌟 The MOST EPIC, MIND-BLOWING, JAW-DROPPING GUESSING GAME EVER™ 🌟</div>
       <div className="start__tagline">Summon fantastical images. Outsmart your rival. Claim eternal glory.</div>
       <div className="start__panel">
+        <label className="settings__label" htmlFor="p1">Player 1</label>
+        <input
+          id="p1"
+          className="settings__input start__input"
+          type="text"
+          maxLength={24}
+          value={name1}
+          onChange={e => setName1(e.target.value)}
+        />
+        <label className="settings__label" htmlFor="p2">Player 2</label>
+        <input
+          id="p2"
+          className="settings__input start__input"
+          type="text"
+          maxLength={24}
+          value={name2}
+          onChange={e => setName2(e.target.value)}
+        />
         <label className="settings__label" htmlFor="targetScore">Target score</label>
         <input
           id="targetScore"
