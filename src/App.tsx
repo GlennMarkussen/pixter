@@ -30,6 +30,8 @@ export default function App() {
   const [loading, setLoading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [gameOver, setGameOver] = useState<boolean>(false)
+  const [roundOver, setRoundOver] = useState<boolean>(false)
+  const [roundReason, setRoundReason] = useState<'max_attempts' | 'give_up' | null>(null)
 
   const describer = useMemo(
     () => PLAYERS.find(p => p.id === current.describerId)!,
@@ -68,8 +70,10 @@ export default function App() {
     setLoading('Judging guess...')
     try {
       const { correct, rationale, closeness } = await api.judge(current.description, guess)
+      let newAttemptsCount = (current.attempts?.length || 0) + 1
       setCurrent((c: RoundData) => {
         const attempts = [...(c.attempts || []), { guess, correct, rationale, closeness }]
+        newAttemptsCount = attempts.length
         return { ...c, guess, correct, rationale, attempts }
       })
       if (correct) {
@@ -82,16 +86,11 @@ export default function App() {
         if (canEnd(next)) setGameOver(true)
         return next
       })
-      // continue same round up to 3 attempts
-      setCurrent((c: RoundData) => {
-        const attemptsCount = c.attempts?.length || 0
-        if (attemptsCount >= 3) {
-          // after third wrong guess, flip turn and reset round (keep scores)
-          return { describerId: guesser.id, description: '' }
-        }
-        // keep same round; allow another guess
-        return c
-      })
+      // continue same round up to 3 attempts; if exceeded, end round and reveal answer
+      if (newAttemptsCount >= 3) {
+        setRoundOver(true)
+        setRoundReason('max_attempts')
+      }
     } catch (e: any) {
       setError(e.message || 'Failed to judge')
     } finally {
@@ -112,8 +111,17 @@ export default function App() {
       if (canEnd(next)) setGameOver(true)
       return next
     })
-    setCurrent({ describerId: guesser.id, description: '' })
+    // end round; reveal answer
+    setRoundOver(true)
+    setRoundReason('give_up')
     setError(null)
+  }
+
+  function nextRound() {
+    // flip turn and reset round state
+    setCurrent({ describerId: guesser.id, description: '' })
+    setRoundOver(false)
+    setRoundReason(null)
   }
 
   function resetGame() {
@@ -143,6 +151,13 @@ export default function App() {
               onSubmit={handleDescribe}
               player={describer}
               busy={!!loading && loading.startsWith('Generating')}
+            />
+          ) : roundOver ? (
+            <RoundSummary
+              correctAnswer={current.description}
+              imageUrl={current.imageUrl}
+              reason={roundReason || 'max_attempts'}
+              onNextRound={nextRound}
             />
           ) : (
             <GuessForm
@@ -349,5 +364,31 @@ function HealthBadge() {
       {status}
       {mock ? ' (mock)' : ''}
     </span>
+  )
+}
+
+function RoundSummary({
+  correctAnswer,
+  imageUrl,
+  reason,
+  onNextRound,
+}: {
+  correctAnswer: string
+  imageUrl?: string
+  reason: 'max_attempts' | 'give_up'
+  onNextRound: () => void
+}) {
+  return (
+    <div className="card">
+      <h3>Round over</h3>
+      {imageUrl && <img className="preview" src={imageUrl} alt="round" />}
+      <p className="subtitle">
+        {reason === 'give_up' ? 'Player gave up.' : 'No more attempts left.'}
+      </p>
+      <p>
+        Correct answer: <strong>{correctAnswer}</strong>
+      </p>
+      <button onClick={onNextRound}>Next round</button>
+    </div>
   )
 }
