@@ -77,13 +77,17 @@ export default function App() {
         return { ...c, guess, correct, rationale, attempts }
       })
       if (correct) {
-        setGameOver(true)
+        // end round on correct; continue game until someone reaches -100
+        setRoundOver(true)
+        setRoundReason('correct' as any)
         return
       }
       // penalty to guesser for each wrong guess
       setScores((s: Record<number, number>) => {
         const next: Record<number, number> = { ...s, [guesser.id]: s[guesser.id] - 10 }
-        if (canEnd(next)) setGameOver(true)
+        if (canEnd(next)) {
+          setGameOver(true)
+        }
         return next
       })
       // continue same round up to 3 attempts; if exceeded, end round and reveal answer
@@ -108,7 +112,9 @@ export default function App() {
     // apply penalty and flip turn
     setScores((s: Record<number, number>) => {
       const next: Record<number, number> = { ...s, [guesser.id]: s[guesser.id] - 10 }
-      if (canEnd(next)) setGameOver(true)
+      if (canEnd(next)) {
+        setGameOver(true)
+      }
       return next
     })
     // end round; reveal answer
@@ -326,15 +332,21 @@ function GameOver({
   current: any
   onReset: () => void
 }) {
-  const winner = current.correct
-    ? 'Guesser won by correctly describing the image!'
-    : scores[1] <= -100 || scores[2] <= -100
-      ? 'Game ended due to penalties.'
-      : 'Game over.'
+  // Determine loser and winner based on scores (<= -100 loses)
+  const p1Lost = scores[1] <= -100
+  const p2Lost = scores[2] <= -100
+  const winnerName = p1Lost ? 'Erna the Blue' : 'Jonas the Red'
+  const loserName = p1Lost ? 'Jonas the Red' : 'Erna the Blue'
   return (
-    <div className="card">
-      <h2>Game Over</h2>
-      <p>{winner}</p>
+    <div className="card" style={{ textAlign: 'center', padding: 32 }}>
+      <div style={{ fontSize: 64, lineHeight: 1, marginBottom: 12 }}>🏆</div>
+      <h2 style={{ marginTop: 0 }}>Winner</h2>
+      <p style={{ fontSize: 20, margin: '8px 0 16px' }}>
+        <strong>{winnerName}</strong>
+      </p>
+      <p className="subtitle" style={{ marginBottom: 20 }}>
+        {loserName} reached -100 points
+      </p>
       <button onClick={onReset}>Play Again</button>
     </div>
   )
@@ -375,7 +387,7 @@ function RoundSummary({
 }: {
   correctAnswer: string
   imageUrl?: string
-  reason: 'max_attempts' | 'give_up'
+  reason: 'max_attempts' | 'give_up' | 'correct'
   onNextRound: () => void
 }) {
   return (
@@ -383,7 +395,11 @@ function RoundSummary({
       <h3>Round over</h3>
       {imageUrl && <img className="preview" src={imageUrl} alt="round" />}
       <p className="subtitle">
-        {reason === 'give_up' ? 'Player gave up.' : 'No more attempts left.'}
+        {reason === 'give_up'
+          ? 'Player gave up.'
+          : reason === 'max_attempts'
+          ? 'No more attempts left.'
+          : 'Correct guess!'}
       </p>
       <p>
         Correct answer: <strong>{correctAnswer}</strong>
