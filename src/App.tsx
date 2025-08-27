@@ -90,6 +90,23 @@ export default function App() {
     }
   }
 
+  function handleGiveUp() {
+    if (!current.imageUrl) return
+    if (loading) return
+    const ok = window.confirm(
+      'Are you sure you want to give up? You will lose 10 points and the turn will flip.'
+    )
+    if (!ok) return
+    // apply penalty and flip turn
+    setScores((s: Record<number, number>) => {
+      const next: Record<number, number> = { ...s, [guesser.id]: s[guesser.id] - 10 }
+      if (canEnd(next)) setGameOver(true)
+      return next
+    })
+    setCurrent({ describerId: guesser.id, description: '' })
+    setError(null)
+  }
+
   function resetGame() {
     setScores({ 1: 0, 2: 0 })
     const start = Math.random() < 0.5 ? 1 : 2
@@ -125,6 +142,7 @@ export default function App() {
               imageUrl={current.imageUrl}
               attempts={current.attempts || []}
               busy={!!loading && loading.startsWith('Judging')}
+              onGiveUp={handleGiveUp}
             />
           )}
 
@@ -208,12 +226,14 @@ function GuessForm({
   imageUrl,
   attempts,
   busy,
+  onGiveUp,
 }: {
   onSubmit: (g: string) => void
   player: Player
   imageUrl: string
   attempts: Array<{ guess: string; correct: boolean; rationale?: string; closeness?: number }>
   busy?: boolean
+  onGiveUp?: () => void
 }) {
   const [guess, setGuess] = useState('')
   return (
@@ -231,6 +251,11 @@ function GuessForm({
         <button disabled={!!busy || !guess.trim()} onClick={() => onSubmit(guess.trim())}>
           Submit Guess
         </button>
+        {onGiveUp && (
+          <button disabled={!!busy} onClick={() => onGiveUp()} style={{ background: '#374151', color: '#e5e7eb' }}>
+            Give up
+          </button>
+        )}
         <span className="subtitle">
           Attempt {Math.min((attempts?.length || 0) + 1, 3)} of 3{busy ? ' • Judging…' : ''}
         </span>
