@@ -6,6 +6,18 @@ function normalizeText(s: string) {
   return s.trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
+function formatRoundPoints(rp: Record<number, number> | null) {
+  if (!rp) return ''
+  const p1 = rp[1] ?? 0
+  const p2 = rp[2] ?? 0
+  const s = (v: number) => (v >= 0 ? `+${v}` : `${v}`)
+  // Only guesser scores; show whoever got points.
+  if (p1 !== 0 && p2 === 0) return `This round: Jonas the Red ${s(p1)}`
+  if (p2 !== 0 && p1 === 0) return `This round: Erna the Blue ${s(p2)}`
+  if (p1 === 0 && p2 === 0) return 'This round: no points'
+  return `This round: Jonas the Red ${s(p1)}, Erna the Blue ${s(p2)}`
+}
+
 const PLAYERS: Player[] = [
   { id: 1, name: 'Jonas the Red', color: '#d94a4a' },
   { id: 2, name: 'Erna the Blue', color: '#4a72d9' },
@@ -32,6 +44,11 @@ export default function App() {
   const [gameOver, setGameOver] = useState<boolean>(false)
   const [roundOver, setRoundOver] = useState<boolean>(false)
   const [roundReason, setRoundReason] = useState<'max_attempts' | 'give_up' | null>(null)
+  const [roundPoints, setRoundPoints] = useState<Record<number, number> | null>(null)
+
+  // Traditional scoring: only guesser scores. +1 per correct guess. First to TARGET wins.
+  const TARGET_SCORE = 10
+  const POINTS_PER_CORRECT = 1
 
   const describer = useMemo(
     () => PLAYERS.find(p => p.id === current.describerId)!,
@@ -42,7 +59,7 @@ export default function App() {
     [current.describerId]
   )
 
-  const canEnd = (s: Record<number, number>) => s[1] <= -100 || s[2] <= -100
+  const canWin = (s: Record<number, number>) => s[1] >= TARGET_SCORE || s[2] >= TARGET_SCORE
 
   async function handleDescribe(description: string) {
   if (loading) return
@@ -77,23 +94,27 @@ export default function App() {
         return { ...c, guess, correct, rationale, attempts }
       })
       if (correct) {
-        // end round on correct; continue game until someone reaches -100
+        // Award point to guesser only
+        setScores((s: Record<number, number>) => {
+          const next: Record<number, number> = {
+            ...s,
+            [guesser.id]: s[guesser.id] + POINTS_PER_CORRECT,
+          }
+          if (canWin(next)) setGameOver(true)
+          return next
+        })
+        setRoundPoints({ [guesser.id]: POINTS_PER_CORRECT })
+        // end round on correct
         setRoundOver(true)
         setRoundReason('correct' as any)
         return
       }
-      // penalty to guesser for each wrong guess
-      setScores((s: Record<number, number>) => {
-        const next: Record<number, number> = { ...s, [guesser.id]: s[guesser.id] - 10 }
-        if (canEnd(next)) {
-          setGameOver(true)
-        }
-        return next
-      })
+      // No score change for wrong guess; continue round up to 3 attempts
       // continue same round up to 3 attempts; if exceeded, end round and reveal answer
       if (newAttemptsCount >= 3) {
         setRoundOver(true)
         setRoundReason('max_attempts')
+        setRoundPoints(null)
       }
     } catch (e: any) {
       setError(e.message || 'Failed to judge')
@@ -106,17 +127,11 @@ export default function App() {
     if (!current.imageUrl) return
     if (loading) return
     const ok = window.confirm(
-      'Are you sure you want to give up? You will lose 10 points and the turn will flip.'
+      'Are you sure you want to give up? The round will end with no points.'
     )
     if (!ok) return
-    // apply penalty and flip turn
-    setScores((s: Record<number, number>) => {
-      const next: Record<number, number> = { ...s, [guesser.id]: s[guesser.id] - 10 }
-      if (canEnd(next)) {
-        setGameOver(true)
-      }
-      return next
-    })
+    // no penalties; just end round
+    setRoundPoints(null)
     // end round; reveal answer
     setRoundOver(true)
     setRoundReason('give_up')
@@ -128,6 +143,7 @@ export default function App() {
     setCurrent({ describerId: guesser.id, description: '' })
     setRoundOver(false)
     setRoundReason(null)
+  setRoundPoints(null)
   }
 
   function resetGame() {
@@ -163,6 +179,7 @@ export default function App() {
               correctAnswer={current.description}
               imageUrl={current.imageUrl}
               reason={roundReason || 'max_attempts'}
+              pointsLabel={formatRoundPoints(roundPoints)}
               onNextRound={nextRound}
             />
           ) : (
@@ -332,11 +349,9 @@ function GameOver({
   current: any
   onReset: () => void
 }) {
-  // Determine loser and winner based on scores (<= -100 loses)
-  const p1Lost = scores[1] <= -100
-  const p2Lost = scores[2] <= -100
-  const winnerName = p1Lost ? 'Erna the Blue' : 'Jonas the Red'
-  const loserName = p1Lost ? 'Jonas the Red' : 'Erna the Blue'
+  // Determine winner as higher score (positive target-based)
+  const winnerName = scores[1] >= scores[2] ? 'Jonas the Red' : 'Erna the Blue'
+  const winnerScore = Math.max(scores[1], scores[2])
   return (
     <div className="card" style={{ textAlign: 'center', padding: 32 }}>
       <div style={{ fontSize: 64, lineHeight: 1, marginBottom: 12 }}>🏆</div>
@@ -344,9 +359,7 @@ function GameOver({
       <p style={{ fontSize: 20, margin: '8px 0 16px' }}>
         <strong>{winnerName}</strong>
       </p>
-      <p className="subtitle" style={{ marginBottom: 20 }}>
-        {loserName} reached -100 points
-      </p>
+      <p className="subtitle" style={{ marginBottom: 20 }}>Reached the target score!</p>
       <button onClick={onReset}>Play Again</button>
     </div>
   )
@@ -383,11 +396,13 @@ function RoundSummary({
   correctAnswer,
   imageUrl,
   reason,
+  pointsLabel,
   onNextRound,
 }: {
   correctAnswer: string
   imageUrl?: string
   reason: 'max_attempts' | 'give_up' | 'correct'
+  pointsLabel?: string
   onNextRound: () => void
 }) {
   return (
@@ -404,6 +419,7 @@ function RoundSummary({
       <p>
         Correct answer: <strong>{correctAnswer}</strong>
       </p>
+      {pointsLabel ? <p className="subtitle">{pointsLabel}</p> : null}
       <button onClick={onNextRound}>Next round</button>
     </div>
   )
