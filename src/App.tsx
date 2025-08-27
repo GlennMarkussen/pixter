@@ -52,6 +52,20 @@ export default function App() {
   const [roundReason, setRoundReason] = useState<'max_attempts' | 'give_up' | null>(null)
   const [roundPoints, setRoundPoints] = useState<Record<number, number> | null>(null)
 
+  // Theme: light/dark with persistence
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    try {
+      const saved = localStorage.getItem('pixter.theme')
+      if (saved === 'light' || saved === 'dark') return saved
+    } catch {}
+    const prefersDark = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+    return prefersDark ? 'dark' : 'light'
+  })
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    try { localStorage.setItem('pixter.theme', theme) } catch {}
+  }, [theme])
+
   // Traditional scoring: only guesser scores. +1 per correct guess. First to targetScore wins.
   const [targetScore, setTargetScore] = useState<number>(() => {
     const v = Number(localStorage.getItem('pixter.targetScore'))
@@ -202,8 +216,18 @@ export default function App() {
   return (
     <div className="container">
       <header>
-        <h1>Pixter</h1>
-        <span className="subtitle">A two-player picture guessing game</span>
+        <div>
+          <h1>Pixter</h1>
+          <span className="subtitle">A two-player picture guessing game</span>
+        </div>
+        <button
+          className="icon-button"
+          aria-label="Toggle theme"
+          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+        >
+          {theme === 'dark' ? '🌞 Light' : '🌙 Dark'}
+        </button>
       </header>
 
       {!started ? (
