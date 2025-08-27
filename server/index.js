@@ -37,22 +37,37 @@ app.post('/api/generate-image', async (req, res) => {
   try {
     if (MOCK || !OpenAI) {
       // Return a placeholder image with the description embedded as text
-      const url = `https://dummyimage.com/512x512/233143/ffffff.png&text=${encodeURIComponent(description.slice(0, 40))}`;
+      const url = `https://dummyimage.com/1024x1024/233143/ffffff.png&text=${encodeURIComponent(description.slice(0, 40))}`;
       return ok(res, { imageUrl: url, model: 'mock' });
     }
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     // Use images generation API (model name subject to change)
-    const resp = await client.images.generate({
-      model: 'gpt-image-1',
-      prompt: description,
-      size: '512x512'
-    });
-    const imageUrl = resp.data?.[0]?.url;
-    if (!imageUrl) return err(res, 'No image URL from model');
-    return ok(res, { imageUrl, model: 'gpt-image-1' });
+  let resp;
+    try {
+      resp = await client.images.generate({
+        model: 'gpt-image-1',
+        prompt: description,
+    size: '1024x1024',
+    response_format: 'b64_json'
+      });
+    } catch (e) {
+      // Fallback to auto if size not accepted
+      resp = await client.images.generate({
+        model: 'gpt-image-1',
+        prompt: description,
+    size: 'auto',
+    response_format: 'b64_json'
+      });
+    }
+  const b64 = resp.data?.[0]?.b64_json;
+  if (!b64) return err(res, 'No image content from model');
+  const imageUrl = `data:image/png;base64,${b64}`;
+  return ok(res, { imageUrl, model: 'gpt-image-1' });
   } catch (e) {
     console.error(e);
-    return err(res, 'Image generation failed');
+    // Fallback to placeholder when OpenAI fails (e.g., billing limit)
+    const url = `https://dummyimage.com/1024x1024/233143/ffffff.png&text=${encodeURIComponent('mock: ' + description.slice(0, 40))}`;
+    return ok(res, { imageUrl: url, model: 'mock-fallback' });
   }
 });
 
