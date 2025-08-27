@@ -39,6 +39,7 @@ export default function App() {
   const canEnd = (s: Record<number, number>) => s[1] <= -100 || s[2] <= -100
 
   async function handleDescribe(description: string) {
+  if (loading) return
     setError(null)
     setLoading('Generating image...')
     try {
@@ -53,6 +54,7 @@ export default function App() {
 
   async function handleGuess(guess: string) {
     if (!current.imageUrl) return
+  if (loading) return
     setError(null)
     setLoading('Judging guess...')
     try {
@@ -122,6 +124,7 @@ export default function App() {
               player={guesser}
               imageUrl={current.imageUrl}
               attempts={current.attempts || []}
+              busy={!!loading && loading.startsWith('Judging')}
             />
           )}
 
@@ -204,11 +207,13 @@ function GuessForm({
   player,
   imageUrl,
   attempts,
+  busy,
 }: {
   onSubmit: (g: string) => void
   player: Player
   imageUrl: string
   attempts: Array<{ guess: string; correct: boolean; rationale?: string; closeness?: number }>
+  busy?: boolean
 }) {
   const [guess, setGuess] = useState('')
   return (
@@ -220,12 +225,15 @@ function GuessForm({
         onChange={e => setGuess(e.target.value)}
         rows={4}
         placeholder="Your description..."
+        disabled={!!busy}
       />
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button disabled={!guess.trim()} onClick={() => onSubmit(guess.trim())}>
+        <button disabled={!!busy || !guess.trim()} onClick={() => onSubmit(guess.trim())}>
           Submit Guess
         </button>
-        <span className="subtitle">Attempt {Math.min((attempts?.length || 0) + 1, 3)} of 3</span>
+        <span className="subtitle">
+          Attempt {Math.min((attempts?.length || 0) + 1, 3)} of 3{busy ? ' • Judging…' : ''}
+        </span>
       </div>
       {attempts?.length ? (
         <div style={{ marginTop: 10 }}>
