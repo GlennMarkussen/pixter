@@ -14,6 +14,7 @@ type RoundData = {
   guess?: string
   correct?: boolean
   rationale?: string
+  attempts?: Array<{ guess: string; correct: boolean; rationale?: string; closeness?: number }>
 }
 
 export default function App() {
@@ -49,20 +50,31 @@ export default function App() {
     setError(null)
     setLoading('Judging guess...')
     try {
-      const { correct, rationale } = await api.judge(current.description, guess)
-  setCurrent((c: RoundData) => ({ ...c, guess, correct, rationale }))
+      const { correct, rationale, closeness } = await api.judge(current.description, guess)
+      setCurrent((c: RoundData) => {
+        const attempts = [...(c.attempts || []), { guess, correct, rationale, closeness }]
+        return { ...c, guess, correct, rationale, attempts }
+      })
       if (correct) {
         setGameOver(true)
         return
       }
-      // penalty to guesser
+      // penalty to guesser for each wrong guess
       setScores((s: Record<number, number>) => {
         const next: Record<number, number> = { ...s, [guesser.id]: s[guesser.id] - 10 }
         if (canEnd(next)) setGameOver(true)
         return next
       })
-      // flip turn
-      setCurrent({ describerId: guesser.id, description: '' })
+      // continue same round up to 3 attempts
+      setCurrent((c: RoundData) => {
+        const attemptsCount = (c.attempts?.length || 0)
+        if (attemptsCount >= 3) {
+          // after third wrong guess, flip turn and reset round (keep scores)
+          return { describerId: guesser.id, description: '' }
+        }
+        // keep same round; allow another guess
+        return c
+      })
     } catch (e: any) {
       setError(e.message || 'Failed to judge')
     } finally {
@@ -95,7 +107,7 @@ export default function App() {
           {!current.imageUrl ? (
             <DescribeForm onSubmit={handleDescribe} player={describer} />
           ) : (
-            <GuessForm onSubmit={handleGuess} player={guesser} imageUrl={current.imageUrl} />
+            <GuessForm onSubmit={handleGuess} player={guesser} imageUrl={current.imageUrl} attempts={current.attempts || []} />
           )}
 
           {current.rationale && (
@@ -150,14 +162,35 @@ function DescribeForm({ onSubmit, player }: { onSubmit: (d: string) => void, pla
   )
 }
 
-function GuessForm({ onSubmit, player, imageUrl }: { onSubmit: (g: string) => void, player: Player, imageUrl: string }) {
+function GuessForm({ onSubmit, player, imageUrl, attempts }: { onSubmit: (g: string) => void, player: Player, imageUrl: string, attempts: Array<{ guess: string; correct: boolean; rationale?: string; closeness?: number }> }) {
   const [guess, setGuess] = useState('')
   return (
     <div className="card">
       <h3 style={{ color: player.color }}>{player.name}, describe what you see</h3>
       <img className="preview" src={imageUrl} alt="generated" />
       <textarea value={guess} onChange={e => setGuess(e.target.value)} rows={4} placeholder="Your description..." />
-      <button disabled={!guess.trim()} onClick={() => onSubmit(guess.trim())}>Submit Guess</button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button disabled={!guess.trim()} onClick={() => onSubmit(guess.trim())}>Submit Guess</button>
+        <span className="subtitle">Attempt {Math.min( (attempts?.length || 0) + 1, 3)} of 3</span>
+      </div>
+      {attempts?.length ? (
+        <div style={{ marginTop: 10 }}>
+          <div className="subtitle">Previous attempts</div>
+          <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+            {attempts.map((a, idx) => (
+              <li key={idx}>
+                <span>{a.guess}</span>
+                {typeof a.closeness === 'number' && (
+                  <span style={{ marginLeft: 8, color: '#93c5fd' }}>closeness: {(a.closeness * 100).toFixed(0)}%</span>
+                )}
+                {a.rationale && (
+                  <span style={{ marginLeft: 8, color: '#9ca3af' }}>({a.rationale})</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   )
 }

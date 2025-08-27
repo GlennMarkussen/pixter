@@ -98,15 +98,21 @@ app.post('/api/generate-image', async (req, res) => {
 app.post('/api/judge', async (req, res) => {
   const { originalDescription, guess } = req.body || {};
   if (!originalDescription || !guess) return err(res, 'Missing fields', 400);
+  // Helper to compute a simple similarity (Jaccard index over words)
+  function computeCloseness(aText, bText) {
+    const a = new Set(String(aText).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+    const b = new Set(String(bText).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+    let inter = 0;
+    for (const w of b) if (a.has(w)) inter++;
+    const union = new Set([...a, ...b]).size || 1;
+    return { closeness: inter / union, overlap: inter };
+  }
   try {
     if (MOCK || !OpenAI) {
       // Simple heuristic: case-insensitive keyword overlap > 2 words
-      const a = new Set(String(originalDescription).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
-      const b = new Set(String(guess).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
-      let overlap = 0;
-      for (const w of b) if (a.has(w)) overlap++;
+      const { closeness, overlap } = computeCloseness(originalDescription, guess);
       const correct = overlap >= 3 || guess.trim().toLowerCase() === originalDescription.trim().toLowerCase();
-      return ok(res, { correct, rationale: `overlap_words=${overlap}` });
+      return ok(res, { correct, rationale: `overlap_words=${overlap}`, closeness });
     }
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const sys = 'You are a strict judge for a guessing game. Given the original prompt that generated an image and a player guess describing that image, reply with a JSON object {"correct": boolean, "rationale": string}. The guess must capture the main subject and key attributes to be correct.';
@@ -122,18 +128,16 @@ app.post('/api/judge', async (req, res) => {
     const content = chat.choices?.[0]?.message?.content || '{}';
     let parsed = {};
     try { parsed = JSON.parse(content); } catch {}
-    const correct = !!parsed.correct;
-    const rationale = parsed.rationale || 'model';
-    return ok(res, { correct, rationale });
+  const correct = !!parsed.correct;
+  const rationale = parsed.rationale || 'model';
+  const { closeness, overlap } = computeCloseness(originalDescription, guess);
+  return ok(res, { correct, rationale, closeness });
   } catch (e) {
   console.error('[judge] OpenAI error:', e?.status || '', e?.response?.data || e?.message || e);
   // Heuristic fallback instead of hard error
-  const a = new Set(String(originalDescription).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
-  const b = new Set(String(guess).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
-  let overlap = 0;
-  for (const w of b) if (a.has(w)) overlap++;
+  const { closeness, overlap } = computeCloseness(originalDescription, guess);
   const correct = overlap >= 3 || guess.trim().toLowerCase() === originalDescription.trim().toLowerCase();
-  return ok(res, { correct, rationale: `fallback_overlap_words=${overlap}` });
+  return ok(res, { correct, rationale: `fallback_overlap_words=${overlap}` , closeness});
   }
 });
 

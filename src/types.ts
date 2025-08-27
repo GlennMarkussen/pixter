@@ -12,4 +12,5 @@ export type GenerateImageResponse = {
 export type JudgeResponse = {
   correct: boolean;
   rationale: string;
+  closeness?: number; // 0..1 similarity heuristic
 };
