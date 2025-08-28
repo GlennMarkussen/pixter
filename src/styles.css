@@ -287,6 +287,21 @@ button:active:not(:disabled) {
   border-color: var(--border);
 }
 
+/* Dark mode: make input text and placeholder a tad darker/stronger for readability */
+[data-theme='dark'] textarea {
+  background: var(--surface);
+  color: #d1d5db; /* slate-300: a bit darker than var(--text) */
+  border-color: var(--border);
+}
+[data-theme='dark'] .settings__input {
+  color: #d1d5db; /* match textarea */
+}
+[data-theme='dark'] textarea::placeholder,
+[data-theme='dark'] .settings__input::placeholder {
+  color: #cbd5e1; /* slate-300 */
+  opacity: 0.95;  /* stronger than default */
+}
+
 /* Footer pins to bottom with spacing */
 footer {
   margin-top: auto;
