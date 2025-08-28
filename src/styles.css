@@ -172,6 +172,39 @@ button:active:not(:disabled) {
   border: 1px solid var(--border);
   margin-bottom: 12px;
 }
+.image-wrap {
+  position: relative;
+  display: block;
+}
+.image-wrap .preview {
+  margin-bottom: 0; /* remove gap; overlay provides spacing */
+}
+.image-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: linear-gradient(to bottom, rgba(17,24,39,0.0), rgba(17,24,39,0.35));
+  opacity: 0;
+  transition: opacity .15s ease;
+  border-radius: 12px;
+}
+.image-wrap:hover .image-overlay,
+.image-wrap:focus-within .image-overlay {
+  opacity: 1;
+}
+.image-overlay .icon-button {
+  background: rgba(255,255,255,0.85);
+  color: #111827;
+  border-color: rgba(0,0,0,0.08);
+}
+[data-theme='dark'] .image-overlay .icon-button {
+  background: rgba(17,24,39,0.9);
+  color: #e5e7eb;
+  border-color: rgba(255,255,255,0.12);
+}
 .loading {
   margin-top: 12px;
   color: #a16207; /* amber-700 */

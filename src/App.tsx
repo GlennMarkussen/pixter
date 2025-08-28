@@ -6,6 +6,40 @@ function normalizeText(s: string) {
   return s.trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
+function slugify(s: string) {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+    .slice(0, 60) || 'image'
+}
+
+async function downloadImage(url: string, filename = 'pixter-image.png') {
+  try {
+    if (url.startsWith('data:')) {
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      return
+    }
+    const resp = await fetch(url, { mode: 'cors' })
+    const blob = await resp.blob()
+    const objectUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = objectUrl
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(objectUrl)
+  } catch {
+    window.open(url, '_blank')
+  }
+}
+
 function formatRoundPoints(
   rp: Record<number, number> | null,
   name1: string,
@@ -454,7 +488,17 @@ function GuessForm({
   return (
     <div className="card">
       <h3 style={{ color: player.color }}>{player.name}, describe what you see</h3>
-      <img className="preview" src={imageUrl} alt="generated" />
+      <div className="image-wrap">
+        <img className="preview" src={imageUrl} alt="generated" />
+        <div className="image-overlay">
+          <button
+            className="icon-button"
+            onClick={() => downloadImage(imageUrl, 'pixter-image.png')}
+          >
+            Download image
+          </button>
+        </div>
+      </div>
       <textarea
         value={guess}
         onChange={e => setGuess(e.target.value)}
@@ -554,7 +598,17 @@ function GameOver({
                   {item.id}. {item.describerName}
                 </div>
                 {item.imageUrl && (
-                  <img className="preview" src={item.imageUrl} alt={`round ${item.id}`} />
+                  <div className="image-wrap">
+                    <img className="preview" src={item.imageUrl} alt={`round ${item.id}`} />
+                    <div className="image-overlay">
+                      <button
+                        className="icon-button"
+                        onClick={() => downloadImage(item.imageUrl!, `${item.id}-${slugify(item.description)}.png`)}
+                      >
+                        Download image
+                      </button>
+                    </div>
+                  </div>
                 )}
                 <div style={{ fontSize: 14, marginTop: 6 }}>
                   <div><strong>Prompt:</strong> {item.description}</div>
@@ -645,18 +699,29 @@ function RoundSummary({
   return (
     <div className="card">
       <h3>Round over</h3>
-      {imageUrl && <img className="preview" src={imageUrl} alt="round" />}
-      <p className="subtitle">
+      {imageUrl && (
+        <div className="image-wrap">
+          <img className="preview" src={imageUrl} alt="round" />
+          <div className="image-overlay">
+            <button
+              className="icon-button"
+              onClick={() => downloadImage(imageUrl, `${slugify(correctAnswer)}.png`)}
+            >
+              Download image
+            </button>
+          </div>
+        </div>
+      )}
+      <p className="subtitle" style={{ marginTop: 6 }}>
         {reason === 'give_up'
           ? 'Player gave up.'
           : reason === 'max_attempts'
           ? 'No more attempts left.'
           : 'Correct guess!'}
       </p>
-      <p>
-        Correct answer: <strong>{correctAnswer}</strong>
-      </p>
-      {pointsLabel ? <p className="subtitle">{pointsLabel}</p> : null}
+      {pointsLabel ? (
+        <div className="subtitle" style={{ margin: '4px 0 12px' }}>{pointsLabel}</div>
+      ) : null}
       {actionLabel && onAction ? (
         <button onClick={onAction}>{actionLabel}</button>
       ) : (
