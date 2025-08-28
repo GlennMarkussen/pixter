@@ -37,6 +37,16 @@ type RoundData = {
   attempts?: Array<{ guess: string; correct: boolean; rationale?: string; closeness?: number }>
 }
 
+type RoundHistoryItem = {
+  id: number
+  describerId: number
+  describerName: string
+  description: string
+  imageUrl?: string
+  reason: 'max_attempts' | 'give_up' | 'correct'
+  attempts: Array<{ guess: string; correct: boolean; rationale?: string; closeness?: number }>
+}
+
 export default function App() {
   const [players, setPlayers] = useState<Player[]>(PLAYERS)
   const [scores, setScores] = useState<Record<number, number>>({ 1: 0, 2: 0 })
@@ -52,6 +62,7 @@ export default function App() {
   const [roundOver, setRoundOver] = useState<boolean>(false)
   const [roundReason, setRoundReason] = useState<'max_attempts' | 'give_up' | null>(null)
   const [roundPoints, setRoundPoints] = useState<Record<number, number> | null>(null)
+  const [history, setHistory] = useState<RoundHistoryItem[]>([])
 
   // Theme: light/dark with persistence
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -131,6 +142,10 @@ export default function App() {
     try {
       const { correct, rationale, closeness } = await api.judge(current.description, guess)
       let newAttemptsCount = (current.attempts?.length || 0) + 1
+      const attemptsLocal = [
+        ...(current.attempts || []),
+        { guess, correct, rationale, closeness }
+      ]
       setCurrent((c: RoundData) => {
         const attempts = [...(c.attempts || []), { guess, correct, rationale, closeness }]
         newAttemptsCount = attempts.length
@@ -150,6 +165,19 @@ export default function App() {
         // end round on correct
         setRoundOver(true)
         setRoundReason('correct' as any)
+        // log history
+        setHistory(h => [
+          ...h,
+          {
+            id: h.length + 1,
+            describerId: current.describerId,
+            describerName: describer.name,
+            description: current.description,
+            imageUrl: current.imageUrl,
+            reason: 'correct',
+            attempts: attemptsLocal
+          }
+        ])
         return
       }
       // No score change for wrong guess; continue round up to 3 attempts
@@ -158,6 +186,19 @@ export default function App() {
         setRoundOver(true)
         setRoundReason('max_attempts')
         setRoundPoints(null)
+        // log history
+        setHistory(h => [
+          ...h,
+          {
+            id: h.length + 1,
+            describerId: current.describerId,
+            describerName: describer.name,
+            description: current.description,
+            imageUrl: current.imageUrl,
+            reason: 'max_attempts',
+            attempts: attemptsLocal
+          }
+        ])
       }
     } catch (e: any) {
       setError(e.message || 'Failed to judge')
@@ -178,6 +219,19 @@ export default function App() {
     // end round; reveal answer
     setRoundOver(true)
     setRoundReason('give_up')
+    // log history
+    setHistory(h => [
+      ...h,
+      {
+        id: h.length + 1,
+        describerId: current.describerId,
+        describerName: describer.name,
+        description: current.description,
+        imageUrl: current.imageUrl,
+        reason: 'give_up',
+        attempts: current.attempts || []
+      }
+    ])
     setError(null)
   }
 
@@ -205,6 +259,7 @@ export default function App() {
     setRoundOver(false)
     setRoundReason(null)
     setRoundPoints(null)
+  setHistory([])
     setGameOver(false)
     setError(null)
     setStarted(true)
@@ -216,6 +271,7 @@ export default function App() {
     setCurrent({ describerId: start, description: '' })
     setGameOver(false)
   setPaused(false)
+  setHistory([])
     setError(null)
     setStarted(false)
   }
@@ -262,7 +318,7 @@ export default function App() {
           onAction={() => setPaused(false)}
         />
       ) : gameOver ? (
-        <GameOver scores={scores} players={players} onReset={resetGame} />
+        <GameOver scores={scores} players={players} onReset={resetGame} history={history} />
       ) : (
         <>
           <Scoreboard scores={scores} players={players} />
@@ -453,15 +509,27 @@ function GameOver({
   scores,
   players,
   onReset,
+  history = [],
 }: {
   scores: Record<number, number>
   players: Player[]
   onReset: () => void
+  history?: Array<{
+    id: number
+    describerId: number
+    describerName: string
+    description: string
+    imageUrl?: string
+    reason: 'max_attempts' | 'give_up' | 'correct'
+    attempts: Array<{ guess: string; correct: boolean; rationale?: string; closeness?: number }>
+  }>
 }) {
   // Determine winner as higher score (positive target-based)
   const p1 = players.find(p => p.id === 1)!
   const p2 = players.find(p => p.id === 2)!
   const winnerName = scores[1] >= scores[2] ? p1.name : p2.name
+  const [showHistory, setShowHistory] = useState2<boolean>(false)
+  const [openAttempts, setOpenAttempts] = useState2<Record<number, boolean>>({})
   return (
     <div className="card" style={{ textAlign: 'center', padding: 32 }}>
       <div style={{ fontSize: 64, lineHeight: 1, marginBottom: 12 }}>🏆</div>
@@ -470,7 +538,62 @@ function GameOver({
         <strong>{winnerName}</strong>
       </p>
       <p className="subtitle" style={{ marginBottom: 20 }}>Reached the target score!</p>
-      <button onClick={onReset}>Play Again</button>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+        <button onClick={() => setShowHistory(v => !v)}>
+          {showHistory ? 'Hide round history' : 'Show round history'}
+        </button>
+        <button onClick={onReset}>Play Again</button>
+      </div>
+      {showHistory && (
+        <div style={{ textAlign: 'left', marginTop: 16 }}>
+          <h3 style={{ marginTop: 0 }}>Round history</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+            {history.map(item => (
+              <div key={item.id} className="card" style={{ padding: 12 }}>
+                <div className="subtitle" style={{ marginBottom: 6 }}>
+                  {item.id}. {item.describerName}
+                </div>
+                {item.imageUrl && (
+                  <img className="preview" src={item.imageUrl} alt={`round ${item.id}`} />
+                )}
+                <div style={{ fontSize: 14, marginTop: 6 }}>
+                  <div><strong>Prompt:</strong> {item.description}</div>
+                  <div className="subtitle" style={{ marginTop: 4 }}>
+                    {item.reason === 'correct' ? 'Correct' : item.reason === 'give_up' ? 'Gave up' : 'Max attempts'}
+                  </div>
+                </div>
+                {item.attempts && item.attempts.length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <button
+                      onClick={() => setOpenAttempts(s => ({ ...s, [item.id]: !s[item.id] }))}
+                      className="icon-button"
+                    >
+                      {openAttempts[item.id] ? 'Hide attempts' : 'Show attempts'}
+                    </button>
+                    {openAttempts[item.id] && (
+                      <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
+                        {item.attempts.map((a, idx) => (
+                          <li key={idx}>
+                            <span>{a.guess}</span>
+                            <span style={{ marginLeft: 8, color: a.correct ? '#16a34a' : '#b91c1c' }}>
+                              {a.correct ? '✓' : '✗'}
+                            </span>
+                            {typeof a.closeness === 'number' && (
+                              <span style={{ marginLeft: 8, color: '#93c5fd' }}>
+                                closeness: {(a.closeness * 100).toFixed(0)}%
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
