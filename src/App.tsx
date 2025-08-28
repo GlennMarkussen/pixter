@@ -114,23 +114,55 @@ export default function App() {
   })
   useEffect(() => {
     try { localStorage.setItem('pixter.soundEnabled', String(soundEnabled)) } catch {}
-    if (!soundEnabled) stopWaitingMusic()
-  }, [soundEnabled])
+    if (!soundEnabled) {
+      // Pause without resetting so we can resume
+      pauseWaitingMusic()
+    } else if (loading && loading.startsWith('Generating')) {
+      // Resume if we are in a waiting state
+      startWaitingMusic()
+    }
+  }, [soundEnabled, loading])
   const [audioEl, setAudioEl] = useState<HTMLAudioElement | null>(null)
   const startWaitingMusic = () => {
     if (!soundEnabled) return
-    if (audioEl) return // already playing
     if (!musicUrls.length) return
-    const pick = musicUrls[Math.floor(Math.random() * musicUrls.length)]
-    const a = new Audio(pick)
-    a.loop = true
-    a.volume = 0.35
-    a.play().catch(() => {/* autoplay might fail; ignore */})
-    setAudioEl(a)
+    try {
+      const pick = musicUrls[Math.floor(Math.random() * musicUrls.length)]
+      let a = audioEl
+      const needsNew = !a || !a.src
+      if (needsNew) {
+        a = new Audio(pick)
+        a.loop = true
+        a.volume = 0.35
+      }
+      // If already playing, do nothing
+      if (a && !a.paused && a.currentTime > 0) {
+        setAudioEl(a)
+        return
+      }
+      // Only set src if missing; don't reset when resuming from pause
+      if (!a!.src) a!.src = pick
+      const playPromise = a!.play()
+      if (playPromise && typeof playPromise.then === 'function') {
+        playPromise.catch(() => { /* autoplay might fail until user gesture */ })
+      }
+      setAudioEl(a!)
+    } catch {}
+  }
+  const pauseWaitingMusic = () => {
+    if (audioEl) {
+      try { audioEl.pause() } catch {}
+    }
   }
   const stopWaitingMusic = () => {
     if (audioEl) {
-      try { audioEl.pause() } catch {}
+      try {
+        audioEl.pause()
+        audioEl.currentTime = 0
+        // Unset src for some browsers to allow replay after user gesture
+        audioEl.src = ''
+        audioEl.load?.()
+      } catch {}
     }
     setAudioEl(null)
   }
@@ -377,7 +409,19 @@ export default function App() {
             className="icon-button"
             aria-label="Toggle sound"
             title={soundEnabled ? 'Mute music' : 'Unmute music'}
-            onClick={() => setSoundEnabled(v => !v)}
+            onClick={() => {
+              setSoundEnabled(prev => {
+                const next = !prev
+                if (!next) {
+                  // Muting: just pause (no reset)
+                  pauseWaitingMusic()
+                } else if (loading && loading.startsWith('Generating')) {
+                  // Unmuting during generation: resume immediately on click
+                  startWaitingMusic()
+                }
+                return next
+              })
+            }}
           >
             {soundEnabled ? '🔊 Sound' : '🔇 Muted'}
           </button>
