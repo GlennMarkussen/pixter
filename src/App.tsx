@@ -82,6 +82,10 @@ type RoundHistoryItem = {
 }
 
 export default function App() {
+  // Static import of music files (served by Vite) as URLs
+  const musicModules = import.meta.glob('/music/*.mp3', { eager: true, as: 'url' }) as Record<string, string>
+  const musicUrls = useMemo(() => Object.values(musicModules), [])
+
   const [players, setPlayers] = useState<Player[]>(PLAYERS)
   const [scores, setScores] = useState<Record<number, number>>({ 1: 0, 2: 0 })
   const [current, setCurrent] = useState<RoundData>(() => {
@@ -97,6 +101,37 @@ export default function App() {
   const [roundReason, setRoundReason] = useState<'max_attempts' | 'give_up' | null>(null)
   const [roundPoints, setRoundPoints] = useState<Record<number, number> | null>(null)
   const [history, setHistory] = useState<RoundHistoryItem[]>([])
+
+  // Sound settings and audio element lifecycle
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    try {
+      const v = localStorage.getItem('pixter.soundEnabled')
+      return v !== 'false'
+    } catch { return true }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('pixter.soundEnabled', String(soundEnabled)) } catch {}
+    if (!soundEnabled) stopWaitingMusic()
+  }, [soundEnabled])
+  const [audioEl, setAudioEl] = useState<HTMLAudioElement | null>(null)
+  const startWaitingMusic = () => {
+    if (!soundEnabled) return
+    if (audioEl) return // already playing
+    if (!musicUrls.length) return
+    const pick = musicUrls[Math.floor(Math.random() * musicUrls.length)]
+    const a = new Audio(pick)
+    a.loop = true
+    a.volume = 0.35
+    a.play().catch(() => {/* autoplay might fail; ignore */})
+    setAudioEl(a)
+  }
+  const stopWaitingMusic = () => {
+    if (audioEl) {
+      try { audioEl.pause() } catch {}
+    }
+    setAudioEl(null)
+  }
+  useEffect(() => () => stopWaitingMusic(), [])
 
   // Theme: light/dark with persistence
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -153,11 +188,15 @@ export default function App() {
   if (loading) return
     setError(null)
     setLoading('Generating image...')
+    // Start waiting music at prompt submission time
+    startWaitingMusic()
     try {
       const { imageUrl } = await api.generateImage(description)
       setCurrent((c: RoundData) => ({ ...c, description, imageUrl }))
     } catch (e: any) {
       setError(e.message || 'Failed to generate image')
+      // Stop music if generation fails
+      stopWaitingMusic()
     } finally {
       setLoading(null)
     }
@@ -199,6 +238,7 @@ export default function App() {
         // end round on correct
         setRoundOver(true)
         setRoundReason('correct' as any)
+  stopWaitingMusic()
         // log history
         setHistory(h => [
           ...h,
@@ -220,6 +260,7 @@ export default function App() {
         setRoundOver(true)
         setRoundReason('max_attempts')
         setRoundPoints(null)
+  stopWaitingMusic()
         // log history
         setHistory(h => [
           ...h,
@@ -253,6 +294,7 @@ export default function App() {
     // end round; reveal answer
     setRoundOver(true)
     setRoundReason('give_up')
+  stopWaitingMusic()
     // log history
     setHistory(h => [
       ...h,
@@ -275,6 +317,7 @@ export default function App() {
     setRoundOver(false)
     setRoundReason(null)
   setRoundPoints(null)
+  stopWaitingMusic()
   }
 
   function startGame() {
@@ -306,6 +349,7 @@ export default function App() {
     setGameOver(false)
   setPaused(false)
   setHistory([])
+  stopWaitingMusic()
     setError(null)
     setStarted(false)
   }
@@ -317,14 +361,24 @@ export default function App() {
           <h1>Pixter</h1>
           <span className="subtitle">A two-player picture guessing game</span>
         </div>
-        <button
-          className="icon-button"
-          aria-label="Toggle theme"
-          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-        >
-          {theme === 'dark' ? '🌞 Light' : '🌙 Dark'}
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className="icon-button"
+            aria-label="Toggle sound"
+            title={soundEnabled ? 'Mute music' : 'Unmute music'}
+            onClick={() => setSoundEnabled(v => !v)}
+          >
+            {soundEnabled ? '🔊 Sound' : '🔇 Muted'}
+          </button>
+          <button
+            className="icon-button"
+            aria-label="Toggle theme"
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          >
+            {theme === 'dark' ? '🌞 Light' : '🌙 Dark'}
+          </button>
+        </div>
       </header>
 
       {!started ? (
