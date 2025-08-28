@@ -172,6 +172,10 @@ button:active:not(:disabled) {
   border: 1px solid var(--border);
   margin-bottom: 12px;
 }
+[data-theme='dark'] .preview {
+  /* Darker canvas behind images for dark mode */
+  background: #0b1220; /* deep slate/navy */
+}
 .image-wrap {
   position: relative;
   display: block;
