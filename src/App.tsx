@@ -48,6 +48,7 @@ export default function App() {
   const [loading, setLoading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [gameOver, setGameOver] = useState<boolean>(false)
+  const [paused, setPaused] = useState<boolean>(false)
   const [roundOver, setRoundOver] = useState<boolean>(false)
   const [roundReason, setRoundReason] = useState<'max_attempts' | 'give_up' | null>(null)
   const [roundPoints, setRoundPoints] = useState<Record<number, number> | null>(null)
@@ -97,6 +98,11 @@ export default function App() {
       }
     }
   }, [targetScore, gameOver, scores])
+
+  // Pause automatically when the game is decided
+  useEffect(() => {
+    if (gameOver) setPaused(true)
+  }, [gameOver])
 
   async function handleDescribe(description: string) {
   if (loading) return
@@ -209,6 +215,7 @@ export default function App() {
     const start = Math.random() < 0.5 ? 1 : 2
     setCurrent({ describerId: start, description: '' })
     setGameOver(false)
+  setPaused(false)
     setError(null)
     setStarted(false)
   }
@@ -239,6 +246,20 @@ export default function App() {
           name2={name2}
           setName1={setName1}
           setName2={setName2}
+        />
+      ) : gameOver && paused ? (
+        <RoundSummary
+          correctAnswer={current.description}
+          imageUrl={current.imageUrl}
+          reason={roundReason || 'correct'}
+          pointsLabel={formatRoundPoints(
+            roundPoints,
+            players.find(p => p.id === 1)?.name || 'Player 1',
+            players.find(p => p.id === 2)?.name || 'Player 2'
+          )}
+          onNextRound={() => { /* paused: do nothing */ }}
+          actionLabel="Show results"
+          onAction={() => setPaused(false)}
         />
       ) : gameOver ? (
         <GameOver scores={scores} players={players} onReset={resetGame} />
@@ -426,6 +447,8 @@ function GuessForm({
   )
 }
 
+// (DecidedPause removed; pause now shows RoundSummary with a "Show results" action)
+
 function GameOver({
   scores,
   players,
@@ -485,12 +508,16 @@ function RoundSummary({
   reason,
   pointsLabel,
   onNextRound,
+  actionLabel,
+  onAction,
 }: {
   correctAnswer: string
   imageUrl?: string
   reason: 'max_attempts' | 'give_up' | 'correct'
   pointsLabel?: string
   onNextRound: () => void
+  actionLabel?: string
+  onAction?: () => void
 }) {
   return (
     <div className="card">
@@ -507,7 +534,11 @@ function RoundSummary({
         Correct answer: <strong>{correctAnswer}</strong>
       </p>
       {pointsLabel ? <p className="subtitle">{pointsLabel}</p> : null}
-      <button onClick={onNextRound}>Next round</button>
+      {actionLabel && onAction ? (
+        <button onClick={onAction}>{actionLabel}</button>
+      ) : (
+        <button onClick={onNextRound}>Next round</button>
+      )}
     </div>
   )
 }
