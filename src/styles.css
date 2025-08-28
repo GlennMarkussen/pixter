@@ -57,6 +57,21 @@ body {
   display: flex;
   flex-direction: column;
 }
+.container.party {
+  animation: partyPulse 1000ms ease-in-out 5;
+  background:
+    radial-gradient(1200px 800px at 80% -20%, rgba(37, 99, 235, 0.15), transparent),
+    radial-gradient(1000px 700px at -10% 20%, rgba(124, 58, 237, 0.12), transparent),
+    radial-gradient(1000px 700px at 50% 120%, rgba(16, 185, 129, 0.12), transparent),
+    var(--bg);
+}
+
+@keyframes partyPulse {
+  0% { filter: saturate(1) brightness(1); }
+  30% { filter: saturate(1.35) brightness(1.07); }
+  60% { filter: saturate(1.6) brightness(1.12); }
+  100% { filter: saturate(1) brightness(1); }
+}
 header {
   display: flex;
   align-items: center;

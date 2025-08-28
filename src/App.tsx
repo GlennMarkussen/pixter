@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from './api'
+import { partyBlast, megaParty } from './party'
 import type { Player } from './types'
 
 function normalizeText(s: string) {
@@ -101,6 +102,8 @@ export default function App() {
   const [roundReason, setRoundReason] = useState<'max_attempts' | 'give_up' | null>(null)
   const [roundPoints, setRoundPoints] = useState<Record<number, number> | null>(null)
   const [history, setHistory] = useState<RoundHistoryItem[]>([])
+  // Party mode for celebratory visuals
+  const [partyMode, setPartyMode] = useState<boolean>(false)
 
   // Sound settings and audio element lifecycle
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
@@ -181,7 +184,11 @@ export default function App() {
 
   // Pause automatically when the game is decided
   useEffect(() => {
-    if (gameOver) setPaused(true)
+    if (gameOver) {
+      setPaused(true)
+      // Big celebration on overall game win
+      try { megaParty() } catch {}
+    }
   }, [gameOver])
 
   async function handleDescribe(description: string) {
@@ -225,6 +232,10 @@ export default function App() {
         return { ...c, guess, correct, rationale, attempts }
       })
       if (correct) {
+        // Party time!
+        try { partyBlast(3500, 1.3) } catch {}
+        setPartyMode(true)
+        window.setTimeout(() => setPartyMode(false), 3800)
         // Award point to guesser only
         setScores((s: Record<number, number>) => {
           const next: Record<number, number> = {
@@ -355,7 +366,7 @@ export default function App() {
   }
 
   return (
-    <div className="container">
+  <div className={`container${partyMode ? ' party' : ''}`}>
       <header>
         <div>
           <h1>Pixter</h1>
