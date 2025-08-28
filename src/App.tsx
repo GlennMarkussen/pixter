@@ -828,6 +828,12 @@ function RoundSummary({
           ? 'No more attempts left.'
           : 'Correct guess!'}
       </p>
+      {/* Reveal the original prompt/solution */}
+      <div className="prompt-box" style={{ marginTop: 10 }}>
+        <div>
+          <strong>Answer:</strong> <span>{correctAnswer}</span>
+        </div>
+      </div>
       {pointsLabel ? (
         <div className="subtitle" style={{ margin: '4px 0 12px' }}>{pointsLabel}</div>
       ) : null}
