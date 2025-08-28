@@ -336,18 +336,20 @@ function DescribeForm({
   return (
     <div className="card">
       <h3 style={{ color: player.color }}>{player.name}, describe the scene</h3>
-      <textarea
-        value={text}
-        onChange={e => setText(e.target.value)}
-        rows={5}
-        placeholder="Describe a scene..."
-      />
       {busy ? (
         <span className="subtitle">Generating image…</span>
       ) : (
-        <button disabled={!text.trim()} onClick={() => onSubmit(text.trim())}>
-          Generate Image
-        </button>
+        <>
+          <textarea
+            value={text}
+            onChange={e => setText(e.target.value)}
+            rows={5}
+            placeholder="Describe a scene..."
+          />
+          <button disabled={!text.trim()} onClick={() => onSubmit(text.trim())}>
+            Generate Image
+          </button>
+        </>
       )}
     </div>
   )
